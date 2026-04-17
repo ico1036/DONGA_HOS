@@ -58,13 +58,14 @@ function resize(){W=C.width=innerWidth;H=C.height=innerHeight}
 resize();addEventListener('resize',resize);
 
 const LEVELS=[
-  {name:'별빛 초원',bg1:'#2d1b69',bg2:'#ff6b9d',stars:[{x:.3,y:.4},{x:.7,y:.3},{x:.5,y:.7}],dialogue:{name:'🦊 여우 별사냥꾼',text:'뿅뿅아! 여기 별빛 초원이야. 반짝이는 걸 찾아보자!'}},
-  {name:'크리스탈 동굴',bg1:'#0f0c29',bg2:'#e040fb',stars:[{x:.2,y:.6},{x:.8,y:.2},{x:.5,y:.5}],dialogue:{name:'🦊 여우 별사냥꾼',text:'우와, 크리스탈이 반짝여! 여기도 별이 숨어있어!'}},
-  {name:'분홍 성운',bg1:'#1a0a2e',bg2:'#ff8fab',stars:[{x:.4,y:.3},{x:.6,y:.6},{x:.3,y:.8}],dialogue:{name:'🦊 여우 별사냥꾼',text:'분홍 성운이다! 구름 사이를 잘 살펴봐!'}},
-  {name:'별의 왕좌',bg1:'#16213e',bg2:'#ffd700',stars:[{x:.5,y:.3},{x:.3,y:.6},{x:.7,y:.6}],dialogue:{name:'🦊 여우 별사냥꾼',text:'마지막이야! 별의 왕좌에서 세 개의 별을 찾으면 탐험 완료!'}}
+  {name:'별빛 초원',bg1:'#2d1b69',bg2:'#ff6b9d',stars:[{x:.3,y:.4},{x:.7,y:.3},{x:.5,y:.7}],obstacles:[{x:.5,y:.25,r:22,vx:1.2,vy:.8},{x:.15,y:.65,r:18,vx:-1,vy:.6},{x:.8,y:.55,r:20,vx:.7,vy:-1.1}],dialogue:{name:'🦊 여우 별사냥꾼',text:'뿅뿅아! 여기 별빛 초원이야. 운석을 조심하면서 별을 찾아보자! ☄️'}},
+  {name:'크리스탈 동굴',bg1:'#0f0c29',bg2:'#e040fb',stars:[{x:.2,y:.6},{x:.8,y:.2},{x:.5,y:.5}],obstacles:[{x:.4,y:.4,r:25,vx:-1.5,vy:1},{x:.65,y:.7,r:16,vx:1,vy:-1.3},{x:.3,y:.2,r:20,vx:.8,vy:1.2}],dialogue:{name:'🦊 여우 별사냥꾼',text:'크리스탈 사이로 운석이 날아와! 조심해!'}},
+  {name:'분홍 성운',bg1:'#1a0a2e',bg2:'#ff8fab',stars:[{x:.4,y:.3},{x:.6,y:.6},{x:.3,y:.8}],obstacles:[{x:.5,y:.5,r:28,vx:1.8,vy:1.5},{x:.2,y:.4,r:18,vx:-1.2,vy:.9},{x:.75,y:.3,r:22,vx:.6,vy:-1.4},{x:.6,y:.8,r:16,vx:-1,vy:-.7}],dialogue:{name:'🦊 여우 별사냥꾼',text:'분홍 성운에 운석이 많아! 재빨리 피해봐!'}},
+  {name:'별의 왕좌',bg1:'#16213e',bg2:'#ffd700',stars:[{x:.5,y:.3},{x:.3,y:.6},{x:.7,y:.6}],obstacles:[{x:.5,y:.5,r:30,vx:2,vy:1.8},{x:.2,y:.3,r:22,vx:-1.5,vy:1.2},{x:.8,y:.7,r:24,vx:1,vy:-2},{x:.4,y:.8,r:18,vx:-1.8,vy:-1}],dialogue:{name:'🦊 여우 별사냥꾼',text:'마지막이야! 운석이 많지만 별을 모두 찾으면 탐험 완료!'}}
 ];
 
-let state='start',level=0,foundStars=[],playerX,playerY,particles=[],bgStars=[],time=0,touchActive=false;
+let state='start',level=0,foundStars=[],playerX,playerY,particles=[],bgStars=[],time=0,bounceCount=0;
+let obstacles=[];
 const PLAYER_R=20,STAR_R=16;
 
 function initBgStars(){
@@ -81,6 +82,7 @@ function startGame(){
 function loadLevel(lv){
   level=lv;foundStars=[];
   playerX=W/2;playerY=H/2;
+  obstacles=LEVELS[lv].obstacles.map(o=>({...o,cx:o.x*W,cy:o.y*H}));
   document.getElementById('stars-found').innerHTML='';
   document.getElementById('level-display').textContent=`🌍 행성 ${lv+1}/${LEVELS.length}`;
   updateStarCount();
@@ -156,6 +158,33 @@ C.addEventListener('touchstart',e=>{e.preventDefault();if(state==='playing'){con
 C.addEventListener('touchmove',e=>{e.preventDefault();if(state==='playing'){const p=getPos(e);targetX=p.x;targetY=p.y}},{passive:false});
 C.addEventListener('touchend',e=>{e.preventDefault();targetX=targetY=null},{passive:false});
 
+function checkObstacles(){
+  obstacles.forEach(o=>{
+    const dx=playerX-o.cx,dy=playerY-o.cy;
+    const dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist<PLAYER_R+o.r){
+      // bounce player away
+      const nx=dx/dist,ny=dy/dist;
+      playerX=o.cx+nx*(PLAYER_R+o.r+10);
+      playerY=o.cy+ny*(PLAYER_R+o.r+10);
+      bounceCount++;
+      addParticle(playerX,playerY,'💫');
+      if(bounceCount%3===0) showMsg(['앗! 튕겼다! 💫','운석 조심! ☄️','으악! 🌟'][Math.floor(Math.random()*3)]);
+      targetX=playerX;targetY=playerY; // reset target so player re-aims
+    }
+  });
+}
+
+function updateObstacles(){
+  obstacles.forEach(o=>{
+    o.cx+=o.vx;o.cy+=o.vy;
+    if(o.cx<o.r||o.cx>W-o.r) o.vx*=-1;
+    if(o.cy<o.r||o.cy>H-o.r) o.vy*=-1;
+    o.cx=Math.max(o.r,Math.min(W-o.r,o.cx));
+    o.cy=Math.max(o.r,Math.min(H-o.r,o.cy));
+  });
+}
+
 function update(){
   if(state!=='playing')return;
   if(targetX!==null){
@@ -166,6 +195,8 @@ function update(){
   playerY=Math.max(PLAYER_R,Math.min(H-PLAYER_R,playerY));
   particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.life-=.02;p.vx*=.96;p.vy*=.96});
   particles=particles.filter(p=>p.life>0);
+  updateObstacles();
+  checkObstacles();
   checkStars();
   time+=.02;
 }
@@ -189,6 +220,14 @@ function draw(){
     const bob=Math.sin(time*2+i)*5;
     X.font='32px serif';X.textAlign='center';X.textBaseline='middle';
     X.fillText('⭐',sx,sy+bob);
+  });
+  // obstacles (운석)
+  obstacles.forEach(o=>{
+    const rot=time*3;
+    X.save();X.translate(o.cx,o.cy);X.rotate(rot);
+    X.font=`${o.r*1.6}px serif`;X.textAlign='center';X.textBaseline='middle';
+    X.fillText('☄️',0,0);
+    X.restore();
   });
   // player (뿅뿅 + 우주선)
   X.font='36px serif';X.textAlign='center';X.textBaseline='middle';
