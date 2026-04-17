@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>🦊 뿅뿅이의 우주 탐험</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#1a0a2e;overflow:hidden;touch-action:none}
+canvas{display:block}
+#start-screen,#end-screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;background:linear-gradient(135deg,#1a0a2e,#2d1b69,#ff6b9d)}
+#end-screen{display:none}
+h1{color:#fff;font-size:2em;text-shadow:0 0 20px rgba(255,107,157,.5);margin-bottom:8px}
+h2{color:#ffb8d0;font-size:1.1em;margin-bottom:24px}
+.start-btn{background:linear-gradient(135deg,#ff6b9d,#ff8fab);color:#fff;border:none;padding:16px 40px;border-radius:30px;font-size:1.2em;cursor:pointer;box-shadow:0 4px 20px rgba(255,107,157,.4);transition:transform .2s}
+.start-btn:hover{transform:scale(1.05)}
+.emoji-big{font-size:4em;margin-bottom:16px}
+#hud{position:fixed;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;z-index:5;pointer-events:none}
+.hud-box{background:rgba(0,0,0,.4);color:#fff;padding:6px 14px;border-radius:20px;font-size:.9em;backdrop-filter:blur(4px)}
+#msg{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.9);color:#333;padding:10px 20px;border-radius:20px;font-size:.95em;z-index:6;display:none;text-align:center;max-width:80%;pointer-events:none}
+#stars-found{position:fixed;top:50px;right:12px;z-index:5;display:flex;gap:4px;flex-wrap:wrap;max-width:150px;justify-content:flex-end}
+.star-icon{font-size:1.4em;filter:drop-shadow(0 0 4px rgba(255,215,0,.5));animation:pop .3s ease}
+@keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
+#dialogue{position:fixed;bottom:20px;left:12px;right:12px;background:rgba(0,0,0,.7);color:#fff;padding:14px 18px;border-radius:16px;font-size:.95em;z-index:6;display:none;backdrop-filter:blur(4px)}
+#dialogue .name{color:#ff8fab;font-weight:700;margin-bottom:4px}
+#dialogue .next-btn{margin-top:8px;background:rgba(255,255,255,.2);border:none;color:#fff;padding:6px 16px;border-radius:12px;cursor:pointer;font-size:.85em}
+</style>
+</head>
+<body>
+<div id="start-screen">
+  <div class="emoji-big">🚀🦊</div>
+  <h1>뿅뿅이의 우주 탐험</h1>
+  <h2>여우 별사냥꾼과 함께 별을 찾아 떠나자!</h2>
+  <button class="start-btn" onclick="startGame()">탐험 시작 ✨</button>
+</div>
+<div id="end-screen">
+  <div class="emoji-big">🎉🌟</div>
+  <h1>탐험 완료!</h1>
+  <h2 id="end-msg">뿅뿅이가 모든 별을 찾았어!</h2>
+  <button class="start-btn" onclick="location.reload()">다시 탐험하기 🚀</button>
+</div>
+<canvas id="game"></canvas>
+<div id="hud">
+  <div class="hud-box" id="level-display">🌍 행성 1/4</div>
+  <div class="hud-box" id="star-count">⭐ 0/3</div>
+</div>
+<div id="stars-found"></div>
+<div id="msg"></div>
+<div id="dialogue">
+  <div class="name" id="dlg-name"></div>
+  <div id="dlg-text"></div>
+  <button class="next-btn" onclick="closeDialogue()">확인</button>
+</div>
+<script>
+const C=document.getElementById('game'),X=C.getContext('2d');
+let W,H;
+function resize(){W=C.width=innerWidth;H=C.height=innerHeight}
+resize();addEventListener('resize',resize);
+
+const LEVELS=[
+  {name:'별빛 초원',bg1:'#2d1b69',bg2:'#ff6b9d',stars:[{x:.3,y:.4},{x:.7,y:.3},{x:.5,y:.7}],dialogue:{name:'🦊 여우 별사냥꾼',text:'뿅뿅아! 여기 별빛 초원이야. 반짝이는 걸 찾아보자!'}},
+  {name:'크리스탈 동굴',bg1:'#0f0c29',bg2:'#e040fb',stars:[{x:.2,y:.6},{x:.8,y:.2},{x:.5,y:.5}],dialogue:{name:'🦊 여우 별사냥꾼',text:'우와, 크리스탈이 반짝여! 여기도 별이 숨어있어!'}},
+  {name:'분홍 성운',bg1:'#1a0a2e',bg2:'#ff8fab',stars:[{x:.4,y:.3},{x:.6,y:.6},{x:.3,y:.8}],dialogue:{name:'🦊 여우 별사냥꾼',text:'분홍 성운이다! 구름 사이를 잘 살펴봐!'}},
+  {name:'별의 왕좌',bg1:'#16213e',bg2:'#ffd700',stars:[{x:.5,y:.3},{x:.3,y:.6},{x:.7,y:.6}],dialogue:{name:'🦊 여우 별사냥꾼',text:'마지막이야! 별의 왕좌에서 세 개의 별을 찾으면 탐험 완료!'}}
+];
+
+let state='start',level=0,foundStars=[],playerX,playerY,particles=[],bgStars=[],time=0,touchActive=false;
+const PLAYER_R=20,STAR_R=16;
+
+function initBgStars(){
+  bgStars=[];
+  for(let i=0;i<80;i++) bgStars.push({x:Math.random()*W,y:Math.random()*H,r:Math.random()*2+.5,s:Math.random()*.5+.2,o:Math.random()});
+}
+
+function startGame(){
+  document.getElementById('start-screen').style.display='none';
+  state='playing';level=0;foundStars=[];
+  loadLevel(0);
+}
+
+function loadLevel(lv){
+  level=lv;foundStars=[];
+  playerX=W/2;playerY=H/2;
+  document.getElementById('stars-found').innerHTML='';
+  document.getElementById('level-display').textContent=`🌍 행성 ${lv+1}/${LEVELS.length}`;
+  updateStarCount();
+  initBgStars();
+  showDialogue(LEVELS[lv].dialogue.name,LEVELS[lv].dialogue.text);
+}
+
+function updateStarCount(){
+  document.getElementById('star-count').textContent=`⭐ ${foundStars.length}/3`;
+}
+
+function showDialogue(name,text){
+  document.getElementById('dlg-name').textContent=name;
+  document.getElementById('dlg-text').textContent=text;
+  document.getElementById('dialogue').style.display='block';
+  state='dialogue';
+}
+
+function closeDialogue(){
+  document.getElementById('dialogue').style.display='none';
+  state='playing';
+}
+
+function showMsg(text){
+  const m=document.getElementById('msg');
+  m.textContent=text;m.style.display='block';
+  setTimeout(()=>m.style.display='none',1500);
+}
+
+function addParticle(x,y,emoji){
+  for(let i=0;i<8;i++){
+    particles.push({x,y,vx:(Math.random()-.5)*6,vy:(Math.random()-.5)*6,life:1,emoji:emoji||'✨',r:Math.random()*12+8});
+  }
+}
+
+function checkStars(){
+  const lv=LEVELS[level];
+  lv.stars.forEach((s,i)=>{
+    if(foundStars.includes(i))return;
+    const sx=s.x*W,sy=s.y*H;
+    const dx=playerX-sx,dy=playerY-sy;
+    if(Math.sqrt(dx*dx+dy*dy)<PLAYER_R+STAR_R){
+      foundStars.push(i);
+      addParticle(sx,sy,'⭐');
+      showMsg(['별을 찾았다! ⭐','멋진 별이야! ✨','찾았다! 🌟'][i]);
+      document.getElementById('stars-found').innerHTML+=`<span class="star-icon">⭐</span>`;
+      updateStarCount();
+      if(foundStars.length===3){
+        setTimeout(()=>{
+          if(level<LEVELS.length-1){
+            showMsg(`🚀 다음 행성으로!`);
+            setTimeout(()=>loadLevel(level+1),1200);
+          }else{
+            state='end';
+            document.getElementById('end-screen').style.display='flex';
+          }
+        },800);
+      }
+    }
+  });
+}
+
+// Input
+let targetX=null,targetY=null;
+function getPos(e){
+  const t=e.touches?e.touches[0]:e;
+  return{x:t.clientX,y:t.clientY};
+}
+C.addEventListener('mousedown',e=>{if(state==='playing'){const p=getPos(e);targetX=p.x;targetY=p.y}});
+C.addEventListener('mousemove',e=>{if(state==='playing'&&e.buttons){const p=getPos(e);targetX=p.x;targetY=p.y}});
+C.addEventListener('mouseup',()=>{targetX=targetY=null});
+C.addEventListener('touchstart',e=>{e.preventDefault();if(state==='playing'){const p=getPos(e);targetX=p.x;targetY=p.y}},{passive:false});
+C.addEventListener('touchmove',e=>{e.preventDefault();if(state==='playing'){const p=getPos(e);targetX=p.x;targetY=p.y}},{passive:false});
+C.addEventListener('touchend',e=>{e.preventDefault();targetX=targetY=null},{passive:false});
+
+function update(){
+  if(state!=='playing')return;
+  if(targetX!==null){
+    const dx=targetX-playerX,dy=targetY-playerY,dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist>5){playerX+=dx*.08;playerY+=dy*.08}
+  }
+  playerX=Math.max(PLAYER_R,Math.min(W-PLAYER_R,playerX));
+  playerY=Math.max(PLAYER_R,Math.min(H-PLAYER_R,playerY));
+  particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.life-=.02;p.vx*=.96;p.vy*=.96});
+  particles=particles.filter(p=>p.life>0);
+  checkStars();
+  time+=.02;
+}
+
+function draw(){
+  const lv=LEVELS[level]||LEVELS[0];
+  const g=X.createLinearGradient(0,0,W,H);
+  g.addColorStop(0,lv.bg1);g.addColorStop(1,lv.bg2);
+  X.fillStyle=g;X.fillRect(0,0,W,H);
+  // bg stars
+  bgStars.forEach(s=>{
+    const o=Math.sin(time*s.s+s.o)*0.3+0.7;
+    X.globalAlpha=o;X.fillStyle='#fff';
+    X.beginPath();X.arc(s.x,s.y,s.r,0,Math.PI*2);X.fill();
+  });
+  X.globalAlpha=1;
+  // collectible stars
+  lv.stars.forEach((s,i)=>{
+    if(foundStars.includes(i))return;
+    const sx=s.x*W,sy=s.y*H;
+    const bob=Math.sin(time*2+i)*5;
+    X.font='32px serif';X.textAlign='center';X.textBaseline='middle';
+    X.fillText('⭐',sx,sy+bob);
+  });
+  // player (뿅뿅 + 우주선)
+  X.font='36px serif';X.textAlign='center';X.textBaseline='middle';
+  X.fillText('🚀',playerX,playerY-4);
+  // particles
+  particles.forEach(p=>{
+    X.globalAlpha=p.life;X.font=`${p.r}px serif`;X.textAlign='center';X.textBaseline='middle';
+    X.fillText(p.emoji,p.x,p.y);
+  });
+  X.globalAlpha=1;
+  // planet name
+  if(state==='playing'){
+    X.fillStyle='rgba(255,255,255,.3)';X.font='bold 14px sans-serif';X.textAlign='center';
+    X.fillText(lv.name,W/2,H-20);
+  }
+}
+
+function loop(){update();draw();requestAnimationFrame(loop)}
+loop();
+</script>
+</body>
+</html>
