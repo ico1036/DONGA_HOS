@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{KID_NAME}}의 게임</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+  min-height: 100vh; color: #333;
+}
+.header {
+  text-align: center; padding: 30px 20px 10px;
+}
+.back-link {
+  display: inline-block; margin-bottom: 16px;
+  color: white; text-decoration: none;
+  background: rgba(0,0,0,0.15); padding: 6px 16px;
+  border-radius: 20px; font-size: 0.9em;
+}
+.back-link:hover { background: rgba(0,0,0,0.25); }
+.kid-info { color: white; text-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+.kid-info h1 { font-size: 1.8em; }
+.kid-info p { opacity: 0.9; margin-top: 4px; }
+.games-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 20px; max-width: 900px;
+  margin: 30px auto; padding: 0 20px 60px;
+}
+.game-card {
+  background: white; border-radius: 16px;
+  overflow: hidden; text-decoration: none; color: #333;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+  cursor: pointer;
+}
+.game-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+.game-thumb {
+  height: 140px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 3em;
+}
+.game-info { padding: 16px; }
+.game-info h3 { font-size: 1.05em; margin-bottom: 4px; }
+.game-info p { font-size: 0.85em; color: #888; }
+.game-badge {
+  display: inline-block; font-size: 0.75em;
+  background: #e8f5e9; color: #2e7d32;
+  padding: 2px 8px; border-radius: 10px;
+  margin-top: 6px;
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <a href="/" class="back-link">← 전체 목록</a>
+  <div class="kid-info">
+    <h1>{{KID_EMOJI}} {{KID_NAME}}의 게임</h1>
+    <p>직접 만든 게임들을 즐겨봐요!</p>
+  </div>
+</div>
+<div id="games-container" class="games-grid"></div>
+<script>
+async function loadGames() {
+  const container = document.getElementById('games-container');
+  try {
+    const res = await fetch('games.json');
+    if (!res.ok) throw new Error('not found');
+    const games = await res.json();
+    games.forEach(game => {
+      const card = document.createElement('a');
+      card.className = 'game-card';
+      card.href = `${encodeURIComponent(game.slug)}/`;
+      const colors = ['#ffecd2','#d4fc79','#a1c4fd','#fbc2eb','#c2e9fb','#ffd1ff'];
+      const color = colors[game.slug.length % colors.length];
+      card.innerHTML = `
+        <div class="game-thumb" style="background:linear-gradient(135deg,${color},${colors[(game.slug.length+1) % colors.length]})">
+          ${game.emoji || '🎮'}
+        </div>
+        <div class="game-info">
+          <h3>${game.name}</h3>
+          <p>${game.description || ''}</p>
+          <span class="game-badge">${game.type || '모험'}</span>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+  } catch {
+    container.innerHTML = '<p style="text-align:center;padding:40px;color:#888;">아직 게임이 없어요 🎮</p>';
+  }
+}
+loadGames();
+</script>
+</body>
+</html>
