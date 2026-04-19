@@ -108,37 +108,109 @@ class Player {
       }
     });
     // Body (steel)
+    // Iron Man style body
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    
+    // Suit body
+    const bodyGrad = ctx.createLinearGradient(-this.size, -this.size, this.size, this.size);
+    bodyGrad.addColorStop(0, '#ff1493');
+    bodyGrad.addColorStop(0.3, '#ff69b4');
+    bodyGrad.addColorStop(0.6, '#c0c0c0');
+    bodyGrad.addColorStop(1, '#808080');
+    
+    // Helmet shape
     ctx.beginPath();
-    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-    const grad = ctx.createRadialGradient(this.x - 5, this.y - 5, 2, this.x, this.y, this.size);
-    grad.addColorStop(0, '#c0c0c0');
-    grad.addColorStop(0.5, '#808080');
-    grad.addColorStop(1, '#404040');
-    ctx.fillStyle = grad;
+    ctx.ellipse(0, 0, this.size * 0.85, this.size, 0, 0, Math.PI * 2);
+    ctx.fillStyle = bodyGrad;
     ctx.fill();
-    ctx.strokeStyle = '#a0a0a0';
+    ctx.strokeStyle = '#ffd700';
     ctx.lineWidth = 2;
     ctx.stroke();
-    // Rainbow hair
-    for (let i = 0; i < 7; i++) {
+    
+    // Faceplate (golden)
+    ctx.beginPath();
+    ctx.moveTo(-this.size * 0.5, -this.size * 0.1);
+    ctx.lineTo(-this.size * 0.3, -this.size * 0.6);
+    ctx.lineTo(0, -this.size * 0.75);
+    ctx.lineTo(this.size * 0.3, -this.size * 0.6);
+    ctx.lineTo(this.size * 0.5, -this.size * 0.1);
+    ctx.lineTo(this.size * 0.35, this.size * 0.4);
+    ctx.lineTo(-this.size * 0.35, this.size * 0.4);
+    ctx.closePath();
+    ctx.fillStyle = '#ffd700';
+    ctx.fill();
+    ctx.strokeStyle = '#daa520';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    
+    // Eyes (glowing)
+    const eyeGlow = 0.7 + Math.sin(Date.now() * 0.005) * 0.3;
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = `rgba(135, 206, 250, ${eyeGlow})`;
+    ctx.fillStyle = `rgba(135, 206, 250, ${eyeGlow})`;
+    ctx.beginPath();
+    ctx.ellipse(-this.size * 0.2, -this.size * 0.15, 5, 3.5, -0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(this.size * 0.2, -this.size * 0.15, 5, 3.5, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    
+    // Arc reactor (chest glow)
+    const reactorGlow = 0.5 + Math.sin(Date.now() * 0.008) * 0.3;
+    ctx.beginPath();
+    ctx.arc(0, this.size * 0.15, 5, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(135, 206, 250, ${reactorGlow})`;
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = `rgba(135, 206, 250, ${reactorGlow})`;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    
+    // Inner reactor ring
+    ctx.beginPath();
+    ctx.arc(0, this.size * 0.15, 3, 0, Math.PI * 2);
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    
+    // Rainbow hair (Mohawk style on top!)
+    for (let i = 0; i < 5; i++) {
       ctx.beginPath();
-      ctx.arc(this.x - 8 + i * 3, this.y - this.size - 5, 6, 0, Math.PI * 2);
-      ctx.fillStyle = `hsl(${(this.rainbowHue + i * 50) % 360}, 100%, 65%)`;
+      const spikeH = 8 + Math.sin(Date.now() * 0.01 + i) * 3;
+      ctx.moveTo(-6 + i * 3, -this.size * 0.85);
+      ctx.lineTo(-4 + i * 3, -this.size * 0.85 - spikeH);
+      ctx.lineTo(-2 + i * 3, -this.size * 0.85);
+      ctx.fillStyle = `hsl(${(this.rainbowHue + i * 60) % 360}, 100%, 65%)`;
       ctx.fill();
     }
-    // Eyes
-    ctx.fillStyle = 'white';
-    ctx.beginPath(); ctx.arc(this.x - 8, this.y - 3, 5, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(this.x + 8, this.y - 3, 5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#1a0a2e';
-    ctx.beginPath(); ctx.arc(this.x - 7, this.y - 2, 3, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(this.x + 9, this.y - 2, 3, 0, Math.PI * 2); ctx.fill();
-    // Smile
+    
+    // Suit detail lines
+    ctx.strokeStyle = 'rgba(255, 215, 0, 0.4)';
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.arc(this.x, this.y + 5, 8, 0, Math.PI);
-    ctx.strokeStyle = '#1a0a2e';
-    ctx.lineWidth = 2;
+    ctx.moveTo(-this.size * 0.7, this.size * 0.3);
+    ctx.lineTo(-this.size * 0.5, this.size * 0.7);
     ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(this.size * 0.7, this.size * 0.3);
+    ctx.lineTo(this.size * 0.5, this.size * 0.7);
+    ctx.stroke();
+    
+    ctx.restore();
+    
+    // Repulsor beam trail (feet)
+    if (this.vy < 0) {
+      ctx.beginPath();
+      ctx.moveTo(this.x - 5, this.y + this.size);
+      ctx.lineTo(this.x, this.y + this.size + 15);
+      ctx.lineTo(this.x + 5, this.y + this.size);
+      ctx.fillStyle = `rgba(135, 206, 250, 0.6)`;
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = 'rgba(135, 206, 250, 0.8)';
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
   }
   flap() {
     this.vy = -7;
