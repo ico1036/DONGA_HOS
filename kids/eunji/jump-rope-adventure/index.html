@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>은지의 줄넘기 모험 ✨</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{overflow:hidden;background:#87CEEB;font-family:'Segoe UI',sans-serif;touch-action:none;user-select:none}
+canvas{display:block}
+#startScreen,#endScreen{position:fixed;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;background:linear-gradient(180deg,#87CEEB 0%,#90EE90 100%)}
+#startScreen.hidden,#endScreen.hidden{display:none}
+h1{color:#FF6347;font-size:1.8em;text-align:center;margin-bottom:5px;text-shadow:2px 2px 0 #FFD700}
+h2{color:#228B22;font-size:1.1em;margin-bottom:8px;text-align:center}
+.dev{color:#8B4513;font-size:0.85em;margin-bottom:15px}
+.desc{color:#333;font-size:0.9em;margin-bottom:15px;text-align:center;padding:0 20px;line-height:1.4}
+button{background:linear-gradient(135deg,#FF6347,#FFD700);color:white;border:none;padding:14px 36px;font-size:1.2em;border-radius:30px;cursor:pointer;box-shadow:0 4px 15px rgba(255,99,71,0.4)}
+button:active{transform:scale(0.95)}
+#hud{position:fixed;top:10px;left:10px;right:10px;z-index:5;display:flex;justify-content:space-between;color:#8B4513;font-size:0.95em;font-weight:bold;text-shadow:1px 1px 0 white}
+.hud-box{background:rgba(255,255,255,0.7);padding:5px 12px;border-radius:15px}
+</style>
+</head>
+<body>
+<div id="startScreen">
+<h1>🌸 은지의 줄넘기 모험 🌸</h1>
+<h2>햇살 가득한 공원에서 줄넘기!</h2>
+<div class="dev">총괄 개발자: 은지 🎨</div>
+<div class="desc">은지가 그린 따뜻한 그림이 게임이 되었어요!<br>화면을 터치해서 줄넘기를 뛰세요!<br>꽃을 모으면서 높이 뛰어보자! 🌻</div>
+<button onclick="startGame()">🪢 줄넘기 시작!</button>
+</div>
+<div id="endScreen" class="hidden">
+<h1>🎉 축하해요! 🎉</h1>
+<div class="desc">은지의 줄넘기 모험이 끝났어요!<br>모은 꽃으로 예쁜 꽃밭을 만들었어요! 🌸</div>
+<div class="dev">총괄 개발자: 은지 🎨</div>
+<button onclick="location.reload()">🔄 다시 뛰기!</button>
+</div>
+<div id="hud">
+<span class="hud-box" id="scoreText">🌸 x 0</span>
+<span class="hud-box" id="jumpText">🪢 0번</span>
+</div>
+<canvas id="game"></canvas>
+<script>
+const c=document.getElementById('game'),ctx=c.getContext('2d');
+let W,H;
+function resize(){W=c.width=window.innerWidth;H=c.height=window.innerHeight}
+resize();window.addEventListener('resize',resize);
+
+let running=false,score=0,jumps=0,goal=30;
+let girl,ropeAngle=0,ropeDir=1,flowers,clouds,sunAngle=0,groundY;
+let particles=[],jumpPhase=0;// 0=ground,1=up,2=down
+
+function initScene(){
+  groundY=H*0.72;
+  girl={x:W*0.45,y:groundY,vy:0,onGround:true,squash:1,stretch:1,frame:0};
+  flowers=[];
+  for(let i=0;i<8;i++) spawnFlower();
+  clouds=[];
+  for(let i=0;i<4;i++) clouds.push({x:Math.random()*W,y:30+Math.random()*60,w:60+Math.random()*40,speed:0.2+Math.random()*0.3});
+}
+
+function spawnFlower(){
+  const types=['🌸','🌻','🌺','🌼','🌹','🌷'];
+  flowers.push({x:50+Math.random()*(W-100),y:groundY-50-Math.random()*(H*0.3),type:types[Math.floor(Math.random()*types.length)],collected:false,bob:Math.random()*6.28,size:20+Math.random()*10});
+}
+
+function drawSky(){
+  const g=ctx.createLinearGradient(0,0,0,groundY);
+  g.addColorStop(0,'#87CEEB');g.addColorStop(1,'#B0E0E6');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,groundY);
+  // Sun
+  sunAngle+=0.01;
+  const sx=W*0.85,sy=60;
+  ctx.save();ctx.translate(sx,sy);
+  // rays
+  for(let i=0;i<12;i++){
+    ctx.rotate(Math.PI/6);
+    ctx.fillStyle='rgba(255,215,0,0.3)';
+    ctx.fillRect(-2,20,4,25+Math.sin(sunAngle+i)*5);
+  }
+  ctx.fillStyle='#FFD700';ctx.beginPath();ctx.arc(0,0,25,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#FFA500';ctx.beginPath();ctx.arc(-5,-3,4,0,Math.PI*2);ctx.arc(5,-3,4,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(0,5,6,0,Math.PI);ctx.strokeStyle='#FFA500';ctx.lineWidth=2;ctx.stroke();
+  ctx.restore();
+}
+
+function drawClouds(){
+  clouds.forEach(cl=>{
+    cl.x-=cl.speed;if(cl.x<-cl.w)cl.x=W+cl.w;
+    ctx.fillStyle='rgba(255,255,255,0.8)';
+    ctx.beginPath();
+    ctx.arc(cl.x,cl.y,cl.w*0.3,0,Math.PI*2);
+    ctx.arc(cl.x+cl.w*0.25,cl.y-cl.w*0.1,cl.w*0.35,0,Math.PI*2);
+    ctx.arc(cl.x+cl.w*0.5,cl.y,cl.w*0.3,0,Math.PI*2);
+    ctx.fill();
+  });
+}
+
+function drawGround(){
+  ctx.fillStyle='#90EE90';ctx.fillRect(0,groundY,W,H-groundY);
+  // Hills
+  ctx.fillStyle='#7CCD7C';
+  ctx.beginPath();ctx.moveTo(-50,groundY);
+  ctx.quadraticCurveTo(W*0.2,groundY-40,W*0.4,groundY);
+  ctx.quadraticCurveTo(W*0.6,groundY-30,W*0.8,groundY);
+  ctx.quadraticCurveTo(W*0.9,groundY-20,W+50,groundY);
+  ctx.lineTo(W+50,H);ctx.lineTo(-50,H);ctx.fill();
+  // Grass tufts
+  ctx.strokeStyle='#228B22';ctx.lineWidth=2;
+  for(let i=0;i<W;i+=30){
+    ctx.beginPath();ctx.moveTo(i,groundY);ctx.lineTo(i-3,groundY-8);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(i+5,groundY);ctx.lineTo(i+7,groundY-6);ctx.stroke();
+  }
+  // Tiny flowers on ground
+  const gFlowers=['🔴','🟡','🟢'];
+  for(let i=20;i<W;i+=60){
+    ctx.font='10px serif';ctx.fillText(gFlowers[i%3],i,groundY+15);
+  }
+}
+
+function drawTrees(){
+  // Left tree
+  drawTree(W*0.08,groundY,60);
+  // Right tree
+  drawTree(W*0.88,groundY,50);
+}
+
+function drawTree(x,y,size){
+  ctx.fillStyle='#8B4513';ctx.fillRect(x-5,y-size*0.8,10,size*0.8);
+  ctx.fillStyle='#228B22';
+  ctx.beginPath();ctx.arc(x,y-size*0.8,size*0.4,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(x-size*0.2,y-size*1,size*0.3,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(x+size*0.2,y-size*1,size*0.3,0,Math.PI*2);ctx.fill();
+}
+
+function drawRope(){
+  ropeAngle+=0.08*ropeDir;
+  if(ropeAngle>1.2||ropeAngle<-1.2)ropeDir*=-1;
+  
+  const rx=girl.x,ry=girl.y-20;
+  const ropeLen=60;
+  const endX=rx+Math.sin(ropeAngle)*ropeLen;
+  const endY=ry+Math.abs(Math.cos(ropeAngle))*30;
+  
+  ctx.strokeStyle='#32CD32';ctx.lineWidth=3;ctx.lineCap='round';
+  ctx.beginPath();
+  ctx.moveTo(rx-30,ry);
+  ctx.quadraticCurveTo(rx,Math.min(endY,ry+40),rx+30,ry);
+  ctx.stroke();
+}
+
+function drawGirl(){
+  const g=girl;
+  const bounce=g.onGround?Math.sin(g.frame*0.15)*2:0;
+  const y=g.y+bounce;
+  
+  ctx.save();ctx.translate(g.x,y);
+  ctx.scale(g.squash,g.stretch);
+  
+  // Legs
+  ctx.fillStyle='#FF8C00';
+  const legSpread=g.onGround?Math.sin(g.frame*0.2)*5:8;
+  ctx.fillRect(-8,10,7,18);ctx.fillRect(1,10+legSpread*0.3,7,18);
+  // Shoes
+  ctx.fillStyle='#FF4500';
+  ctx.fillRect(-9,27,9,5);ctx.fillRect(0,27+legSpread*0.3,9,5);
+  
+  // Dress (yellow)
+  ctx.fillStyle='#FFD700';
+  ctx.beginPath();
+  ctx.moveTo(-12,-5);ctx.lineTo(12,-5);ctx.lineTo(10,12);ctx.lineTo(-10,12);ctx.closePath();ctx.fill();
+  ctx.strokeStyle='#FFA500';ctx.lineWidth=1;ctx.stroke();
+  
+  // Arms
+  ctx.fillStyle='#FFDAB9';
+  const armAngle=g.onGround?0:-0.5;
+  ctx.save();ctx.translate(-12,-2);ctx.rotate(-0.3+armAngle);
+  ctx.fillRect(0,0,5,15);ctx.restore();
+  ctx.save();ctx.translate(12,-2);ctx.rotate(0.3-armAngle);
+  ctx.fillRect(-5,0,5,15);ctx.restore();
+  
+  // Head
+  ctx.fillStyle='#FFDAB9';ctx.beginPath();ctx.arc(0,-15,12,0,Math.PI*2);ctx.fill();
+  
+  // Hair (brown pigtails)
+  ctx.fillStyle='#8B4513';
+  ctx.beginPath();ctx.arc(-10,-22,5,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(10,-22,5,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(0,-20,10,Math.PI,0);ctx.fill();
+  
+  // Eyes
+  ctx.fillStyle='#333';
+  ctx.beginPath();ctx.arc(-4,-16,2.5,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(4,-16,2.5,0,Math.PI*2);ctx.fill();
+  // Eye shine
+  ctx.fillStyle='white';
+  ctx.beginPath();ctx.arc(-3,-17,1,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(5,-17,1,0,Math.PI*2);ctx.fill();
+  
+  // Smile
+  ctx.beginPath();ctx.arc(0,-11,5,0.1*Math.PI,0.9*Math.PI);
+  ctx.strokeStyle='#333';ctx.lineWidth=1.5;ctx.stroke();
+  
+  // Blush
+  ctx.fillStyle='rgba(255,150,150,0.4)';
+  ctx.beginPath();ctx.arc(-7,-12,3,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(7,-12,3,0,Math.PI*2);ctx.fill();
+  
+  ctx.restore();
+}
+
+function drawParents(){
+  // Mom (left) - pink shirt, blue skirt
+  ctx.save();ctx.translate(W*0.25,groundY);
+  ctx.fillStyle='#FF69B4';ctx.fillRect(-8,-5,16,15);// shirt
+  ctx.fillStyle='#4169E1';ctx.fillRect(-7,10,14,20);// skirt
+  ctx.fillStyle='#FF4500';ctx.fillRect(-7,30,6,5);ctx.fillRect(1,30,6,5);// shoes
+  ctx.fillStyle='#FFDAB9';ctx.beginPath();ctx.arc(0,-15,10,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#8B4513';
+  for(let i=-6;i<6;i+=3){ctx.beginPath();ctx.arc(i+Math.sin(i)*2,-18-Math.random()*3,3,0,Math.PI*2);ctx.fill();}// curly hair
+  ctx.fillStyle='#333';ctx.beginPath();ctx.arc(-3,-16,2,0,Math.PI*2);ctx.arc(3,-16,2,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(0,-11,4,0.1*Math.PI,0.9*Math.PI);ctx.strokeStyle='#333';ctx.lineWidth=1.5;ctx.stroke();
+  // Arm holding rope
+  ctx.fillStyle='#FFDAB9';ctx.fillRect(8,-3,15,4);
+  ctx.restore();
+  
+  // Dad (right) - green shirt, brown pants
+  ctx.save();ctx.translate(W*0.65,groundY);
+  ctx.fillStyle='#32CD32';ctx.fillRect(-8,-5,16,15);
+  ctx.fillStyle='#8B4513';ctx.fillRect(-7,10,14,20);
+  ctx.fillStyle='#4169E1';ctx.fillRect(-7,30,6,5);ctx.fillRect(1,30,6,5);
+  ctx.fillStyle='#FFDAB9';ctx.beginPath();ctx.arc(0,-15,10,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#333';ctx.fillRect(-7,-22,14,5);// short hair
+  ctx.fillStyle='#333';ctx.beginPath();ctx.arc(-3,-16,2,0,Math.PI*2);ctx.arc(3,-16,2,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(0,-11,4,0.1*Math.PI,0.9*Math.PI);ctx.strokeStyle='#333';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.fillStyle='#FFDAB9';ctx.fillRect(-23,-3,15,4);// arm holding rope
+  ctx.restore();
+}
+
+function drawFlowers(){
+  flowers.forEach(f=>{
+    if(f.collected)return;
+    f.bob+=0.03;
+    const fy=f.y+Math.sin(f.bob)*5;
+    ctx.font=`${f.size}px serif`;
+    ctx.fillText(f.type,f.x-f.size/2,fy);
+    // Glow
+    ctx.beginPath();ctx.arc(f.x,fy-f.size/3,f.size*0.6,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,255,200,0.15)';ctx.fill();
+  });
+}
+
+function drawParticles(){
+  particles=particles.filter(p=>{
+    p.life--;p.x+=p.vx;p.y+=p.vy;p.vy+=0.1;
+    if(p.life<=0)return false;
+    ctx.globalAlpha=p.life/p.maxLife;
+    ctx.font=`${p.size}px serif`;
+    ctx.fillText(p.emoji,p.x,p.y);
+    ctx.globalAlpha=1;
+    return true;
+  });
+}
+
+function addParticles(x,y,emoji,count){
+  for(let i=0;i<count;i++){
+    particles.push({x,y,emoji,size:12+Math.random()*8,vx:(Math.random()-0.5)*4,vy:-2-Math.random()*3,life:30+Math.random()*20,maxLife:50});
+  }
+}
+
+function handleInput(e){
+  if(!running)return;e.preventDefault();
+  if(girl.onGround){
+    girl.vy=-10;girl.onGround=false;
+    girl.squash=0.8;girl.stretch=1.2;
+    jumps++;
+    document.getElementById('jumpText').textContent=`🪢 ${jumps}번`;
+  }
+}
+document.addEventListener('keydown',e=>{if(e.code==='Space')handleInput(e)});
+c.addEventListener('touchstart',handleInput);
+c.addEventListener('mousedown',handleInput);
+
+function gameLoop(){
+  if(!running)return;
+  girl.frame++;
+  
+  // Physics
+  if(!girl.onGround){
+    girl.vy+=0.4;girl.y+=girl.vy;
+    if(girl.y>=groundY){
+      girl.y=groundY;girl.vy=0;girl.onGround=true;
+      girl.squash=1.2;girl.stretch=0.8;
+    }
+  }
+  // Squash/stretch recover
+  girl.squash+=(1-girl.squash)*0.15;
+  girl.stretch+=(1-girl.stretch)*0.15;
+  
+  // Check flower collection
+  flowers.forEach(f=>{
+    if(f.collected)return;
+    const dx=girl.x-f.x,dy=(girl.y-20)-(f.y+Math.sin(f.bob)*5);
+    if(Math.sqrt(dx*dx+dy*dy)<35){
+      f.collected=true;score++;
+      addParticles(f.x,f.y,f.type,5);
+      document.getElementById('scoreText').textContent=`🌸 x ${score}`;
+      if(score%5===0)spawnFlower();
+    }
+  });
+  
+  // Draw
+  drawSky();drawClouds();drawTrees();drawGround();
+  drawFlowers();drawParents();drawRope();drawGirl();drawParticles();
+  
+  if(score>=goal){running=false;document.getElementById('endScreen').classList.remove('hidden');return;}
+  requestAnimationFrame(gameLoop);
+}
+
+function startGame(){
+  document.getElementById('startScreen').classList.add('hidden');
+  initScene();running=true;gameLoop();
+}
+</script>
+</body>
+</html>
