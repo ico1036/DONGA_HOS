@@ -136,16 +136,27 @@ function drawRope(){
   ropeAngle+=0.08*ropeDir;
   if(ropeAngle>1.2||ropeAngle<-1.2)ropeDir*=-1;
   
-  const rx=girl.x,ry=girl.y-20;
-  const ropeLen=60;
-  const endX=rx+Math.sin(ropeAngle)*ropeLen;
-  const endY=ry+Math.abs(Math.cos(ropeAngle))*30;
+  const momX=W*0.25+23, momY=groundY-3;
+  const dadX=W*0.65-23, dadY=groundY-3;
+  const midX=(momX+dadX)/2;
+  const sagBase = girl.onGround ? 15 : 5;
+  const sag = sagBase + Math.sin(ropeAngle) * 10;
   
-  ctx.strokeStyle='#32CD32';ctx.lineWidth=3;ctx.lineCap='round';
+  ctx.strokeStyle='#32CD32';ctx.lineWidth=4;ctx.lineCap='round';
+  ctx.shadowBlur=3;ctx.shadowColor='rgba(50,205,50,0.5)';
   ctx.beginPath();
-  ctx.moveTo(rx-30,ry);
-  ctx.quadraticCurveTo(rx,Math.min(endY,ry+40),rx+30,ry);
+  ctx.moveTo(momX, momY);
+  ctx.quadraticCurveTo(midX, girl.y + sag, dadX, dadY);
   ctx.stroke();
+  ctx.strokeStyle='#228B22';ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(momX, momY-2);
+  ctx.quadraticCurveTo(midX, girl.y + sag - 2, dadX, dadY-2);
+  ctx.stroke();
+  ctx.shadowBlur=0;
+  ctx.fillStyle='#8B4513';
+  ctx.beginPath();ctx.arc(momX,momY,4,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(dadX,dadY,4,0,Math.PI*2);ctx.fill();
 }
 
 function drawGirl(){
